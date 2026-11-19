@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>FML · Fake My Location</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="FML">
+<meta name="theme-color" content="#f2f2f7" id="themeColor">
+<script>
+  /* Saved per device. Runs before paint so there's no flash of the wrong theme. */
+  (function () {
+    var mode = "auto", theme = "classic";
+    try { mode = localStorage.getItem("mode") || mode; theme = localStorage.getItem("theme") || theme; } catch (e) {}
+    var dark = theme === "neon" || mode === "dark" || (mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.mode = dark ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    try { if (!localStorage.getItem("welcomed")) document.documentElement.classList.add("first-run"); } catch (e) {}
+  })();
+</script>
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  /* ---------- tokens (iOS system colors) ---------- */
+  :root {
+    color-scheme: light;
+    --bg: #f2f2f7;
+    --glass: rgba(255, 255, 255, .78);
+    --glass-strong: rgba(255, 255, 255, .92);
+    --glass-border: rgba(255, 255, 255, .6);
+    --label: #000000;
+    --label-2: rgba(60, 60, 67, .72);
+    --label-3: rgba(60, 60, 67, .45);
+    --fill: rgba(118, 118, 128, .12);
+    --fill-2: rgba(118, 118, 128, .2);
+    --separator: rgba(60, 60, 67, .16);
+    --accent: #007aff;
+    --accent-2: var(--accent);
+    --accent-tint: rgba(0, 122, 255, .12);
+    --on-accent: #ffffff;
+    --glow: none;
+    --map-filter: none;
+    --red: #ff3b30;
+    --red-tint: rgba(255, 59, 48, .12);
+    --green: #34c759;
+    --orange: #ff9500;
+    --yellow: #ffcc00;
+    --thumb: #ffffff;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .06), 0 4px 16px rgba(0, 0, 0, .08);
+    --shadow-2: 0 2px 6px rgba(0, 0, 0, .06), 0 12px 40px rgba(0, 0, 0, .14);
+    --r-sm: 10px; --r-md: 14px; --r-lg: 22px; --r-xl: 28px;
+    --spring: cubic-bezier(.32, 1.25, .5, 1);
+    --ease-out: cubic-bezier(.2, .8, .2, 1);
+    --gutter: 12px;
+  }
+  :root[data-mode="dark"] {
+    color-scheme: dark;
+    --bg: #000000;
+    --glass: rgba(30, 30, 32, .72);
+    --glass-strong: rgba(36, 36, 38, .92);
+    --glass-border: rgba(255, 255, 255, .08);
+    --label: #ffffff;
+    --label-2: rgba(235, 235, 245, .7);
+    --label-3: rgba(235, 235, 245, .4);
+    --fill: rgba(118, 118, 128, .24);
+    --fill-2: rgba(118, 118, 128, .36);
+    --separator: rgba(84, 84, 88, .55);
+    --accent: #0a84ff;
+    --accent-tint: rgba(10, 132, 255, .2);
+    --red: #ff453a;
+    --red-tint: rgba(255, 69, 58, .18);
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --thumb: #636366;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .4), 0 4px 16px rgba(0, 0, 0, .35);
+    --shadow-2: 0 2px 6px rgba(0, 0, 0, .4), 0 12px 40px rgba(0, 0, 0, .55);
+  }
+
+  /* ---------- color themes (accent + map tint) ---------- */
+  :root[data-theme="neon"] {                       /* always dark */
+    --bg: #07020f;
+    --glass: rgba(22, 10, 40, .72);
+    --glass-strong: rgba(24, 11, 44, .93);
+    --glass-border: rgba(191, 90, 242, .35);
+    --separator: rgba(191, 90, 242, .25);
+    --fill: rgba(191, 90, 242, .14);
+    --fill-2: rgba(191, 90, 242, .28);
+    --thumb: #3b1a5c;
+    --accent: #c86bff;
+    --accent-2: #ff2fa0;
+    --accent-tint: rgba(200, 107, 255, .18);
+    --on-accent: #ffffff;
+    --green: #3dffa2;
+    --glow: 0 0 0 1px rgba(255, 255, 255, .08), 0 6px 24px rgba(200, 80, 255, .55);
+    --map-filter: sepia(.9) hue-rotate(225deg) saturate(3.2) brightness(.95) contrast(1.05);
+  }
+  :root[data-theme="ocean"] {
+    --accent: #0284c7; --accent-2: #06b6d4; --accent-tint: rgba(2, 132, 199, .12);
+    --glow: 0 6px 18px rgba(6, 182, 212, .35);
+    --map-filter: sepia(.35) hue-rotate(160deg) saturate(1.5);
+  }
+  :root[data-theme="ocean"][data-mode="dark"] {
+    --accent: #22d3ee; --accent-2: #38bdf8; --accent-tint: rgba(34, 211, 238, .16); --on-accent: #00222b;
+    --map-filter: none;
+  }
+  :root[data-theme="sunset"] {
+    --accent: #f0482a; --accent-2: #ff2d78; --accent-tint: rgba(240, 72, 42, .12);
+    --glow: 0 6px 18px rgba(255, 60, 90, .35);
+    --map-filter: sepia(.3) hue-rotate(-10deg) saturate(1.25);
+  }
+  :root[data-theme="sunset"][data-mode="dark"] {
+    --accent: #ff7a45; --accent-2: #ff3d8b; --accent-tint: rgba(255, 122, 69, .18);
+    --map-filter: sepia(.8) hue-rotate(-35deg) saturate(2.4) brightness(.95);
+  }
+  :root[data-theme="forest"] {
+    --accent: #2b8a3e; --accent-2: #12b886; --accent-tint: rgba(43, 138, 62, .12);
+    --glow: 0 6px 18px rgba(18, 184, 134, .3);
+    --map-filter: sepia(.35) hue-rotate(55deg) saturate(1.4);
+  }
+  :root[data-theme="forest"][data-mode="dark"] {
+    --accent: #51cf66; --accent-2: #20c997; --accent-tint: rgba(81, 207, 102, .16); --on-accent: #04170a;
+    --map-filter: sepia(.8) hue-rotate(60deg) saturate(1.8) brightness(.95);
+  }
+  :root[data-theme="mono"] {
+    --accent: #111111; --accent-tint: rgba(0, 0, 0, .08); --on-accent: #ffffff;
+    --map-filter: grayscale(1);
+  }
+  :root[data-theme="mono"][data-mode="dark"] {
+    --accent: #f5f5f7; --accent-tint: rgba(255, 255, 255, .12); --on-accent: #000000;
+  }
+
+  /* ---------- base ---------- */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--label); overflow: hidden;
+    font: 17px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer;
+    touch-action: manipulation; }
+  button:disabled { cursor: default; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .glass { background: var(--glass); border: .5px solid var(--glass-border); box-shadow: var(--shadow-1);
+    -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  #map { position: fixed; inset: 0; background: var(--bg); }
+  #map canvas { filter: var(--map-filter); transition: filter .4s; }
+  .maplibregl-ctrl-attrib { font-size: 10px; }
+  .maplibregl-ctrl-bottom-left { bottom: var(--attrib-offset, 0px); }
+  .maplibregl-ctrl-attrib.maplibregl-compact { background: var(--glass); color: var(--label-2); }
+  @media (min-width: 768px) { .maplibregl-ctrl-bottom-left { left: auto; right: 72px; } }
+
+  /* ---------- top bar ---------- */
+  .top { position: fixed; z-index: 20; top: 0; left: 0; right: 0;
+    padding: calc(env(safe-area-inset-top) + 8px) var(--gutter) 0; pointer-events: none;
+    display: flex; flex-direction: column; gap: 8px; }
+  .top > * { pointer-events: auto; }
+  .search { position: relative; display: flex; align-items: center; height: 48px; border-radius: var(--r-md);
+    padding: 0 6px 0 14px; gap: 8px; }
+  .search .i { color: var(--label-3); }
+  .search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--label);
+    font: inherit; font-size: 17px; }
+  .search input::placeholder { color: var(--label-3); }
+  .search input::-webkit-search-cancel-button { display: none; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--label-2); }
+  .icon-btn:active { background: var(--fill); }
+  .results { border-radius: var(--r-md); overflow: hidden; max-height: 50vh; overflow-y: auto; display: none;
+    background: var(--glass-strong); }
+  .results.open { display: block; animation: fadeDown .2s var(--ease-out); }
+  .result { width: 100%; display: flex; gap: 12px; align-items: center; padding: 10px 14px; text-align: left;
+    min-height: 56px; }
+  .result + .result { border-top: .5px solid var(--separator); }
+  .result:active, .result:hover { background: var(--fill); }
+  .result .badge { width: 32px; height: 32px; border-radius: 50%; background: var(--red); color: #fff;
+    display: grid; place-items: center; flex: none; }
+  .result .badge .i { width: 16px; height: 16px; }
+  .result .t { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result .s { font-size: 13px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result > div { min-width: 0; }
+  .empty-results { padding: 16px; color: var(--label-2); font-size: 15px; }
+
+  .pill { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 32px;
+    padding: 0 12px 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600; max-width: 100%; }
+  .pill span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot { position: relative; width: 10px; height: 10px; border-radius: 50%; background: var(--label-3); flex: none; }
+  .dot.active, .dot.walking { background: var(--green); }
+  .dot.active::after, .dot.walking::after { content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid var(--green); animation: ring 1.8s ease-out infinite; }
+  .dot.connecting { background: var(--orange); animation: blink 1s ease-in-out infinite; }
+  .dot.error { background: var(--red); }
+
+  /* ---------- floating controls ---------- */
+  .fabs { position: fixed; z-index: 15; right: var(--gutter); display: flex; flex-direction: column; gap: 8px;
+    transition: bottom .3s var(--ease-out); }
+  .fab { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--accent); }
+  .fab:active:not(:disabled) { transform: scale(.94); }
+  .fab:disabled { color: var(--label-3); }
+
+  /* ---------- sheet ---------- */
+  .sheet { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px;
+    border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 6px 16px calc(env(safe-area-inset-bottom) + 16px);
+    background: var(--glass-strong); box-shadow: var(--shadow-2);
+    -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px);
+    border-top: .5px solid var(--glass-border); }
+  .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--fill-2); margin: 0 auto 12px; }
+  .view { animation: rise .32s var(--spring); }
+
+  .head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
+  .head > div { flex: 1; min-width: 0; }
+  .title { font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; }
+  .subtitle { font-size: 15px; color: var(--label-2); margin-top: 2px; overflow-wrap: anywhere; }
+  .coords { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px;
+    color: var(--label-2); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums;
+    padding: 4px 8px; margin-left: -8px; border-radius: 8px; }
+  .coords:active { background: var(--fill); }
+  .coords .i { width: 14px; height: 14px; }
+  .round { width: 36px; height: 36px; border-radius: 50%; background: var(--fill); display: grid; place-items: center;
+    color: var(--label-2); flex: none; transition: color .2s, background .2s; }
+  .round:active { transform: scale(.92); }
+  .round .i { width: 18px; height: 18px; }
+  .round.on { color: var(--yellow); }
+  .round.on svg { fill: currentColor; }
+
+  .btn { height: 52px; border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 17px; font-weight: 600; width: 100%; transition: transform .15s var(--ease-out), opacity .2s, background .2s; }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .btn:disabled { opacity: .4; }
+  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent);
+    box-shadow: var(--glow); }
+  .btn.tinted { background: var(--accent-tint); color: var(--accent); }
+  .btn.danger { background: var(--red-tint); color: var(--red); }
+  .btn.plain { background: var(--fill); color: var(--label); }
+  .btn .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor;
+    border-right-color: transparent; animation: spin .7s linear infinite; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .section-label { font-size: 13px; font-weight: 600; color: var(--label-2); text-transform: uppercase;
+    letter-spacing: .04em; margin: 18px 0 8px; }
+
+  /* iOS segmented control */
+  .seg { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); padding: 2px; border-radius: 10px;
+    background: var(--fill); margin-top: 10px; }
+  .seg .thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / 4); border-radius: 8px;
+    background: var(--thumb); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.04);
+    transition: transform .3s var(--spring); }
+  .seg button { position: relative; z-index: 1; height: 36px; display: flex; align-items: center; justify-content: center;
+    gap: 5px; font-size: 13px; font-weight: 500; color: var(--label); border-radius: 8px; }
+  .seg button:disabled { color: var(--label-3); }
+  .seg button[aria-checked="true"] { font-weight: 600; }
+  .seg .i { width: 15px; height: 15px; }
+  .hint { font-size: 13px; color: var(--label-2); margin-top: 10px; text-align: center; }
+
+  .favs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
+  .favs::-webkit-scrollbar { display: none; }
+  .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 10px;
+    border-radius: 999px; background: var(--fill); font-size: 15px; font-weight: 500; max-width: 200px; }
+  .chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip:active { transform: scale(.96); }
+  .chip .i { width: 16px; height: 16px; color: var(--yellow); fill: var(--yellow); }
+  .favs-empty { font-size: 15px; color: var(--label-2); }
+
+  .progress { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; margin: 14px 0 16px; }
+  .progress > div { height: 100%; background: var(--accent); border-radius: 3px; transition: width 1s linear; }
+  .stats { display: flex; gap: 28px; }
+  .stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .stat .k { font-size: 13px; color: var(--label-2); }
+
+  .reset-row { margin-top: 14px; padding-top: 14px; border-top: .5px solid var(--separator); }
+
+  .error { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--r-md);
+    background: var(--red-tint); color: var(--red); font-size: 15px; margin-bottom: 14px; }
+  .error .i { margin-top: 1px; }
+
+  .route-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .route-svg path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .route-svg .casing { stroke: #ffffff; stroke-width: 9; }
+  :root[data-mode="dark"] .route-svg .casing { stroke: rgba(0, 0, 0, .55); }
+  .route-svg .line { stroke: var(--accent); stroke-width: 5; }
+  :root[data-theme="neon"] .route-svg .line { filter: drop-shadow(0 0 4px var(--accent)) drop-shadow(0 0 10px var(--accent-2)); }
+
+  /* ---------- appearance picker ---------- */
+  .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .35); opacity: 0; pointer-events: none;
+    transition: opacity .2s; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .picker { position: fixed; z-index: 41; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px;
+    padding: 6px 16px calc(env(safe-area-inset-bottom) + 20px); border-radius: var(--r-xl) var(--r-xl) 0 0;
+    background: var(--glass-strong); box-shadow: var(--shadow-2); border-top: .5px solid var(--glass-border);
+    -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px);
+    transform: translateY(105%); transition: transform .38s var(--spring); visibility: hidden; }
+  .picker.open { transform: none; visibility: visible; }
+  .picker .head { align-items: center; margin-bottom: 4px; }
+  .modes { grid-template-columns: repeat(3, 1fr); margin-top: 0; }
+  .modes .thumb { width: calc((100% - 4px) / 3); }
+  .themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .theme { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px 10px;
+    border-radius: var(--r-md); background: var(--fill); font-size: 14px; font-weight: 600; min-height: 44px;
+    border: 2px solid transparent; transition: border-color .2s, transform .15s; }
+  .theme:active { transform: scale(.96); }
+  .theme[aria-checked="true"] { border-color: var(--accent); }
+  .swatch { width: 44px; height: 44px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); position: relative; }
+  .swatch::after { content: ""; position: absolute; inset: 12px; border-radius: 50%; background: rgba(255,255,255,.9); }
+  .theme small { font-size: 12px; font-weight: 500; color: var(--label-2); margin-top: -6px; }
+  .note { font-size: 13px; color: var(--label-2); margin-top: 8px; }
+  @media (min-width: 768px) {
+    .picker { left: auto; right: 72px; bottom: 16px; width: 380px; border-radius: var(--r-lg);
+      border: .5px solid var(--glass-border); padding-bottom: 20px; transform: translateY(12px) scale(.98); opacity: 0;
+      transition: transform .25s var(--spring), opacity .2s; }
+    .picker.open { transform: none; opacity: 1; }
+    .picker .grabber { display: none; }
+  }
+
+  /* ---------- welcome ---------- */
+  .welcome { position: fixed; inset: 0; z-index: 100; display: none; overflow-y: auto;
+    background:
+      radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
+      radial-gradient(90% 50% at 100% 100%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 70%),
+      var(--bg);
+    padding: calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 24px); }
+  .welcome.open, .first-run .welcome { display: flex; }
+  .welcome.leaving { animation: fadeOut .3s var(--ease-out) forwards; }
+  .welcome-inner { margin: auto; width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center;
+    text-align: center; }
+  .welcome-inner > * { animation: rise .6s var(--spring) both; }
+  .welcome-inner > :nth-child(2) { animation-delay: .08s; }
+  .welcome-inner > :nth-child(3) { animation-delay: .16s; }
+  .welcome-inner > :nth-child(4) { animation-delay: .24s; }
+  .welcome-inner > :nth-child(5) { animation-delay: .32s; }
+  .logo { width: 96px; height: 96px; border-radius: 26px; display: grid; place-items: center; color: var(--on-accent);
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); margin-bottom: 22px;
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .logo svg { width: 48px; height: 48px; }
+  .brand { margin: 0; font-size: 64px; font-weight: 800; letter-spacing: -.04em; line-height: 1;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text;
+    color: transparent; }
+  .brand-sub { font-size: 22px; font-weight: 600; letter-spacing: -.01em; margin-top: 8px; }
+  .byline { font-size: 15px; color: var(--label-2); margin-top: 6px; }
+  .byline strong { color: var(--label); font-weight: 600; }
+  .steps { list-style: none; padding: 0; margin: 32px 0 28px; width: 100%; text-align: left; display: grid; gap: 10px; }
+  .steps li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: var(--r-md);
+    background: var(--glass); border: .5px solid var(--glass-border); font-size: 15px; color: var(--label-2); }
+  .steps b { display: block; color: var(--label); font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+  .steps .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent-tint); color: var(--accent); font-size: 14px; font-weight: 700; }
+  .about { display: block; width: 100%; text-align: center; margin-top: 18px; font-size: 13px; color: var(--label-3);
+    padding: 8px; }
+  .about strong { color: var(--label-2); font-weight: 600; }
+  @keyframes fadeOut { to { opacity: 0; transform: scale(1.02); } }
+
+  /* ---------- toast ---------- */
+  .toast { position: fixed; z-index: 30; left: 50%; top: calc(env(safe-area-inset-top) + 100px);
+    transform: translate(-50%, -16px); opacity: 0; pointer-events: none; display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-radius: 999px; font-size: 15px; font-weight: 600; max-width: calc(100% - 32px);
+    white-space: nowrap; transition: transform .35s var(--spring), opacity .2s; }
+  .toast span { overflow: hidden; text-overflow: ellipsis; }
+  .toast.show { transform: translate(-50%, 0); opacity: 1; }
+  .toast .i { color: var(--green); }
+  .toast.bad .i { color: var(--red); }
+
+  /* ---------- markers ---------- */
+  .pin { display: block; width: 34px; height: 44px; transform-origin: 50% 100%; animation: drop .45s var(--spring);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+  .me { width: 22px; height: 22px; position: relative; pointer-events: none; }
+  .me::before { content: ""; position: absolute; inset: -16px; border-radius: 50%; background: var(--accent);
+    opacity: .2; animation: halo 2.4s ease-in-out infinite; }
+  .me::after { content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35), var(--glow); }
+
+  /* ---------- wide screens: Apple-Maps-style side card ---------- */
+  @media (min-width: 768px) {
+    :root { --gutter: 16px; }
+    .top { width: 432px; right: auto; padding-top: 16px; }
+    .sheet { left: 16px; right: auto; bottom: 16px; margin: 0; width: 400px; border-radius: var(--r-lg);
+      padding-bottom: 16px; max-height: calc(100vh - 150px); overflow-y: auto; border: .5px solid var(--glass-border); }
+    .grabber { display: none; }
+    .sheet #view { padding-top: 10px; }
+    .toast { left: 216px; top: 120px; }
+  }
+
+  @keyframes ring { from { transform: scale(.6); opacity: .9; } to { transform: scale(1.6); opacity: 0; } }
+  @keyframes blink { 50% { opacity: .35; } }
+  @keyframes halo { 0%, 100% { transform: scale(.85); } 50% { transform: scale(1.1); } }
+  @keyframes drop { from { transform: translateY(-28px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes fadeDown { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Map. Tap to choose a location."></div>
+
+<div class="top">
+  <label class="search glass">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <span class="sr">Search</span>
+    <input id="q" type="search" placeholder="Search places or paste coordinates" autocomplete="off"
+           autocorrect="off" spellcheck="false" enterkeyhint="search" aria-controls="results">
+    <button class="icon-btn" id="clearQ" aria-label="Clear search" hidden>
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </label>
+  <div class="results glass" id="results" role="listbox" aria-label="Search results"></div>
+  <div class="pill glass" id="pill" aria-live="polite"><span class="dot" id="dot"></span><span id="pillText">Real location</span></div>
+</div>
+
+<div class="fabs" id="fabs">
+  <button class="fab glass" id="modeBtn" aria-label="Switch to dark mode"></button>
+  <button class="fab glass" id="themeBtn" aria-label="Themes" aria-haspopup="dialog">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+  </button>
+  <button class="fab glass" id="recenter" aria-label="Show fake location" disabled>
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8z"/></svg>
+  </button>
+</div>
+
+<section class="sheet" id="sheet" aria-label="Controls">
+  <div class="grabber" aria-hidden="true"></div>
+  <div id="view"></div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<section class="picker" id="picker" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="head"><div><div class="title" id="pickerTitle">Appearance</div></div>
+    <button class="round" id="pickerClose" aria-label="Close">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </div>
+  <div id="pickerBody"></div>
+</section>
+
+<div class="welcome" id="welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+  <div class="welcome-inner">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+    </div>
+    <h1 class="brand" id="welcomeTitle">FML</h1>
+    <div class="brand-sub">Fake My Location</div>
+    <div class="byline">Created by <strong>Luke Sikora</strong></div>
+    <div style="width:100%">
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>Plug in your iPhone</b>Use a cable, unlock the phone and tap Trust.</div></li>
+        <li><span class="n">2</span><div><b>Turn on Developer Mode</b>Settings › Privacy &amp; Security › Developer Mode, then restart.</div></li>
+        <li><span class="n">3</span><div><b>Pick a spot and teleport</b>Search or tap the map. Keep the Mac on while you’re spoofing.</div></li>
+      </ol>
+      <button class="btn primary" id="welcomeGo">Get Started</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast glass" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+/* ================= icons (Lucide) ================= */
+const I = {
+  pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  feet: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
+  run: '<circle cx="14" cy="4" r="1.5"/><path d="m4 17 5 1 .75-1.5"/><path d="M15 21v-4l-4-3 1-6"/><path d="M7 12V9l5-1 3 3 3 1"/>',
+  bike: '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>',
+  car: '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
+  star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  stop: '<rect width="14" height="14" x="5" y="5" rx="2"/>',
+  undo: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (id) => document.getElementById(id);
+
+/* ================= state ================= */
+const SPEEDS = [
+  { kmh: 5, label: "Walk", verb: "Walking", icon: "feet" },
+  { kmh: 10, label: "Run", verb: "Running", icon: "run" },
+  { kmh: 18, label: "Bike", verb: "Biking", icon: "bike" },
+  { kmh: 50, label: "Drive", verb: "Driving", icon: "car" },
+];
+let picked = null;          // { lat, lon, title, subtitle }
+let status = { status: "idle" };
+let favorites = [];
+let speedIdx = 0;
+let busy = null;            // "teleport" | "walk" | "reset"
+let walkTotal = 0;
+let errorMsg = "";
+try { speedIdx = +(localStorage.getItem("speedIdx") || 0) % SPEEDS.length; } catch (e) {}
+
+/* ================= welcome ================= */
+function openWelcome() {
+  const w = $("welcome");
+  w.classList.remove("leaving"); w.classList.add("open");
+}
+function closeWelcome() {
+  const w = $("welcome");
+  try { localStorage.setItem("welcomed", "1"); } catch (e) {}
+  w.classList.add("leaving");
+  setTimeout(() => { w.classList.remove("open", "leaving"); root.classList.remove("first-run"); }, 300);
+}
+
+/* ================= themes ================= */
+const THEMES = [
+  { id: "classic", name: "Classic", sw: "linear-gradient(135deg,#007aff,#5ac8fa)" },
+  { id: "neon", name: "Neon", sw: "linear-gradient(135deg,#c86bff,#ff2fa0)", hint: "Dark only" },
+  { id: "ocean", name: "Ocean", sw: "linear-gradient(135deg,#0284c7,#06b6d4)" },
+  { id: "sunset", name: "Sunset", sw: "linear-gradient(135deg,#f0482a,#ff2d78)" },
+  { id: "forest", name: "Forest", sw: "linear-gradient(135deg,#2b8a3e,#12b886)" },
+  { id: "mono", name: "Mono", sw: "linear-gradient(135deg,#111111,#8e8e93)" },
+];
+const root = document.documentElement;
+const sysDark = matchMedia("(prefers-color-scheme: dark)");
+const prefs = { mode: "auto", theme: "classic" };
+try {
+  prefs.mode = localStorage.getItem("mode") || "auto";
+  prefs.theme = THEMES.some((t) => t.id === localStorage.getItem("theme")) ? localStorage.getItem("theme") : "classic";
+} catch (e) {}
+const isDark = () => prefs.theme === "neon" || prefs.mode === "dark" || (prefs.mode === "auto" && sysDark.matches);
+const mapStyleName = () => !isDark() ? "positron" : prefs.theme === "ocean" ? "fiord" : "dark";
+const styleUrl = (name) => `https://tiles.openfreemap.org/styles/${name}`;
+const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+let currentStyle = mapStyleName();
+
+function savePrefs() {
+  try { localStorage.setItem("mode", prefs.mode); localStorage.setItem("theme", prefs.theme); } catch (e) {}
+}
+
+function applyTheme() {
+  root.dataset.mode = isDark() ? "dark" : "light";
+  root.dataset.theme = prefs.theme;
+  $("themeColor").content = cssVar("--bg");
+  const want = mapStyleName();
+  if (typeof map !== "undefined") {
+    if (want !== currentStyle) { currentStyle = want; map.setStyle(styleUrl(want)); }
+  }
+  renderModeBtn();
+  if ($("picker").classList.contains("open")) renderPicker();
+}
+sysDark.addEventListener("change", applyTheme);
+
+const SUN = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>';
+const MOON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
+function renderModeBtn() {
+  const b = $("modeBtn");
+  b.innerHTML = isDark() ? SUN : MOON;
+  b.setAttribute("aria-label", isDark() ? "Switch to light mode" : "Switch to dark mode");
+}
+$("modeBtn").onclick = () => {
+  if (prefs.theme === "neon") { prefs.theme = "classic"; toast("Neon is dark-only, switched to Classic"); }
+  prefs.mode = isDark() ? "light" : "dark";
+  savePrefs(); applyTheme();
+};
+
+function renderPicker() {
+  const neon = prefs.theme === "neon";
+  const modes = ["auto", "light", "dark"], idx = modes.indexOf(prefs.mode);
+  $("pickerBody").innerHTML = `
+    <div class="section-label" style="margin-top:12px">Mode</div>
+    <div class="seg modes" role="radiogroup" aria-label="Light or dark">
+      <div class="thumb" style="transform:translateX(${(neon ? 2 : idx) * 100}%)"></div>
+      ${modes.map((m) => `<button role="radio" data-mode="${m}" aria-checked="${neon ? m === "dark" : m === prefs.mode}" ${neon ? "disabled" : ""}>
+        ${m === "auto" ? "Automatic" : m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
+    </div>
+    ${neon ? `<div class="note">Neon is always dark.</div>` : prefs.mode === "auto" ? `<div class="note">Follows your device’s light or dark setting.</div>` : ""}
+    <div class="section-label">Theme</div>
+    <div class="themes" role="radiogroup" aria-label="Color theme">
+      ${THEMES.map((t) => `<button class="theme" role="radio" data-theme="${t.id}" aria-checked="${t.id === prefs.theme}">
+        <span class="swatch" style="background:${t.sw}"></span>${t.name}${t.hint ? `<small>${t.hint}</small>` : ""}</button>`).join("")}
+    </div>
+    <button class="about" data-about="1"><strong>FML</strong> · Fake My Location · Created by Luke Sikora</button>`;
+}
+$("pickerBody").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.about) { closePicker(); return openWelcome(); }
+  if (b.dataset.mode) prefs.mode = b.dataset.mode;
+  if (b.dataset.theme) prefs.theme = b.dataset.theme;
+  savePrefs(); applyTheme();
+});
+function openPicker() {
+  renderPicker();
+  $("picker").classList.add("open"); $("scrim").classList.add("open");
+  setTimeout(() => $("pickerClose").focus(), 50);
+}
+function closePicker() {
+  $("picker").classList.remove("open"); $("scrim").classList.remove("open");
+  $("themeBtn").focus();
+}
+$("themeBtn").onclick = openPicker;
+$("pickerClose").onclick = closePicker;
+$("scrim").onclick = closePicker;
+addEventListener("keydown", (e) => { if (e.key === "Escape" && $("picker").classList.contains("open")) closePicker(); });
+
+$("welcomeGo").onclick = closeWelcome;
+
+/* ================= map ================= */
+const map = new maplibregl.Map({
+  container: "map", style: styleUrl(currentStyle), center: [-74.006, 40.7128], zoom: 12,
+  attributionControl: false, dragRotate: false, pitchWithRotate: false,
+});
+map.touchZoomRotate.disableRotation();
+map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+map.once("load", () => document.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"));
+
+const pinEl = document.createElement("div");
+const pinMarker = new maplibregl.Marker({ element: pinEl, anchor: "bottom" });
+function renderPin() {
+  pinEl.innerHTML = `<svg class="pin" viewBox="0 0 34 44" aria-hidden="true">
+    <path d="M17 42s14-13.4 14-25A14 14 0 0 0 3 17c0 11.6 14 25 14 25z" fill="#ff3b30" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="17" cy="17" r="5.5" fill="#fff"/></svg>`;
+}
+const meEl = document.createElement("div"); meEl.className = "me";
+const meMarker = new maplibregl.Marker({ element: meEl });
+
+/* Route is drawn as SVG above the map canvas, so the theme's map tint doesn't recolor it. */
+const SVGNS = "http://www.w3.org/2000/svg";
+const routeSvg = document.createElementNS(SVGNS, "svg");
+routeSvg.setAttribute("class", "route-svg");
+routeSvg.setAttribute("aria-hidden", "true");
+routeSvg.innerHTML = '<path class="casing"/><path class="line"/>';
+map.getCanvasContainer().appendChild(routeSvg);
+let routePts = [], routeKey = "";
+
+function drawRoute(route) {
+  const key = route.length ? route.length + ":" + route[route.length - 1] : "";
+  if (key !== routeKey) { routeKey = key; routePts = route; }
+  const d = routePts.map(([la, lo], i) => { const p = map.project([lo, la]); return (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1); }).join("");
+  routeSvg.querySelectorAll("path").forEach((el) => el.setAttribute("d", d));
+}
+map.on("move", () => routePts.length && drawRoute(routePts));
+map.on("resize", () => routePts.length && drawRoute(routePts));
+
+map.on("click", (e) => {
+  closeResults(); q.blur();
+  choose(e.lngLat.lat, e.lngLat.lng, "Dropped Pin", "", true);
+});
+
+/* ================= api ================= */
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || "Something went wrong (" + r.status + ")");
+  return body;
+}
+
+/* ================= choosing a spot ================= */
+function choose(lat, lon, title, subtitle, reverse = false) {
+  picked = { lat, lon, title, subtitle };
+  errorMsg = "";
+  renderPin();
+  pinMarker.setLngLat([lon, lat]).addTo(map);
+  render();
+  if (reverse) reverseGeocode(picked);
+}
+
+async function reverseGeocode(p) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat=${p.lat}&lon=${p.lon}`);
+    const j = await r.json();
+    if (picked !== p || !j.address) return;
+    const a = j.address;
+    const street = [a.house_number, a.road].filter(Boolean).join(" ");
+    const name = j.name && !/^\d+\s*[a-z]?$/i.test(j.name) ? j.name : "";
+    p.title = name || street || a.neighbourhood || a.suburb || a.city || "Dropped Pin";
+    p.subtitle = [p.title === street ? null : street, a.city || a.town || a.village, a.state, a.country]
+      .filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 3).join(", ");
+    render();
+  } catch (e) {}
+}
+
+/* ================= search ================= */
+const q = $("q"), results = $("results");
+let searchTimer, searchSeq = 0;
+q.addEventListener("input", () => {
+  $("clearQ").hidden = !q.value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 350);
+});
+q.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { clearTimeout(searchTimer); search(true); }
+  if (e.key === "Escape") { closeResults(); q.blur(); }
+});
+$("clearQ").onclick = (e) => { e.preventDefault(); q.value = ""; $("clearQ").hidden = true; closeResults(); q.focus(); };
+function closeResults() { searchSeq++; results.classList.remove("open"); results.innerHTML = ""; }
+
+function splitPlace(it) {
+  const parts = it.display_name.split(", ");
+  const title = it.name || parts[0];
+  return { title, subtitle: parts.filter((x) => x !== title).slice(0, 3).join(", ") };
+}
+
+async function search(pickFirst = false) {
+  const text = q.value.trim();
+  if (!text) return closeResults();
+  const m = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) {
+    closeResults(); q.blur();
+    choose(+m[1], +m[2], "Coordinates", "", true);
+    map.flyTo({ center: [+m[2], +m[1]], zoom: 16 });
+    return;
+  }
+  const seq = ++searchSeq;
+  const b = map.getBounds();
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=${encodeURIComponent(text)}` +
+    `&viewbox=${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
+  try {
+    const items = await (await fetch(url)).json();
+    if (seq !== searchSeq) return;
+    if (pickFirst && items[0]) return selectResult(items[0]);
+    results.innerHTML = items.length ? "" : `<div class="empty-results">No places found for “${esc(text)}”.</div>`;
+    items.forEach((it) => {
+      const { title, subtitle } = splitPlace(it);
+      const btn = document.createElement("button");
+      btn.className = "result"; btn.setAttribute("role", "option");
+      btn.innerHTML = `<span class="badge">${icon("pin")}</span><div><div class="t">${esc(title)}</div><div class="s">${esc(subtitle)}</div></div>`;
+      btn.onclick = () => selectResult(it);
+      results.appendChild(btn);
+    });
+    results.classList.add("open");
+  } catch (e) {
+    results.innerHTML = `<div class="empty-results">Search isn’t available right now. Check your internet connection.</div>`;
+    results.classList.add("open");
+  }
+}
+function selectResult(it) {
+  const { title, subtitle } = splitPlace(it);
+  choose(+it.lat, +it.lon, title, subtitle);
+  map.flyTo({ center: [+it.lon, +it.lat], zoom: 16 });
+  q.value = ""; $("clearQ").hidden = true; closeResults(); q.blur();
+}
+
+/* ================= actions ================= */
+async function teleport() {
+  busy = "teleport"; errorMsg = ""; render();
+  try {
+    status = await api("/api/set", { method: "POST",
+      body: JSON.stringify({ lat: picked.lat, lon: picked.lon, label: picked.title }) });
+    toast(`Teleported to ${picked.title}`);
+    pinMarker.remove(); picked = null;
+  } catch (e) { errorMsg = e.message; }
+  busy = null; render();
+}
+
+async function walk() {
+  busy = "walk"; errorMsg = ""; render();
+  const sp = SPEEDS[speedIdx];
+  try {
+    const r = await api("/api/walk", { method: "POST", body: JSON.stringify({
+      to: { lat: picked.lat, lon: picked.lon, label: picked.title }, speed_kmh: sp.kmh, roads: true }) });
+    walkTotal = 0;
+    toast(`${sp.verb} to ${picked.title}`);
+    pinMarker.remove(); picked = null;
+    const lons = r.route.map((p) => p[1]), lats = r.route.map((p) => p[0]);
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: fitPadding(), maxZoom: 17 });
+    await poll();
+  } catch (e) { errorMsg = e.message; }
+  busy = null; render();
+}
+
+async function stopWalk() { stopping = true; await api("/api/stop", { method: "POST" }).catch(() => {}); await poll(); stopping = false; toast("Stopped here"); }
+
+async function reset() {
+  busy = "reset"; errorMsg = ""; render();
+  try { status = await api("/api/clear", { method: "POST" }); toast("Back to your real location"); }
+  catch (e) { errorMsg = e.message; }
+  busy = null; render();
+}
+
+const sameSpot = (a, b) => Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lon - b.lon) < 1e-6;
+const findFav = (p) => p && favorites.find((f) => sameSpot(f, p));
+async function toggleFav() {
+  try {
+    const f = findFav(picked);
+    if (f) {
+      favorites = await api("/api/favorites/" + encodeURIComponent(f.name), { method: "DELETE" });
+      toast("Removed from Saved");
+    } else {
+      let name = picked.title || "Saved place", n = 2;
+      while (favorites.some((x) => x.name === name)) name = `${picked.title} ${n++}`;
+      favorites = await api("/api/favorites", { method: "POST", body: JSON.stringify({ name, lat: picked.lat, lon: picked.lon }) });
+      toast("Saved");
+    }
+  } catch (e) { toast(e.message, true); }
+  render();
+}
+
+async function copyCoords() {
+  const text = `${picked.lat.toFixed(6)}, ${picked.lon.toFixed(6)}`;
+  try { await navigator.clipboard.writeText(text); toast("Coordinates copied"); } catch (e) { toast(text); }
+}
+
+/* ================= rendering ================= */
+const fmtDist = (m) => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+const fmtTime = (s) => s < 60 ? "<1 min" : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
+const spinner = '<span class="spin" aria-hidden="true"></span>';
+
+function speedControl(disabled) {
+  return `<div class="seg" role="radiogroup" aria-label="Travel speed">
+    <div class="thumb" style="transform:translateX(${speedIdx * 100}%)"></div>
+    ${SPEEDS.map((s, i) => `<button role="radio" aria-checked="${i === speedIdx}" data-speed="${i}" ${disabled ? "disabled" : ""}>
+      ${icon(s.icon)}${s.label}</button>`).join("")}</div>`;
+}
+
+function favChips() {
+  if (!favorites.length) return `<div class="favs-empty">Tap the star on a place to save it here.</div>`;
+  return `<div class="favs">${favorites.map((f, i) =>
+    `<button class="chip" data-fav="${i}">${icon("star")}<span>${esc(f.name)}</span></button>`).join("")}</div>`;
+}
+
+function errorBox() {
+  const msg = errorMsg || (status.status === "error" ? status.error : "");
+  return msg ? `<div class="error" role="alert">${icon("alert")}<div>${esc(msg)}</div></div>` : "";
+}
+
+function resetRow() {
+  if (!status.position) return "";
+  return `<div class="reset-row"><button class="btn danger" data-act="reset" ${busy ? "disabled" : ""}>
+    ${busy === "reset" ? spinner : icon("undo")} Back to Real Location</button></div>`;
+}
+
+let lastView = "";
+const viewKey = (s) => s === "walking" ? "walk" : picked ? "picked:" + picked.lat + "," + picked.lon : "home";
+
+function render() {
+  const s = status.status;
+  const spoofing = !!status.position;
+
+  $("dot").className = "dot " + s;
+  $("pillText").textContent = {
+    idle: "Real location", connecting: "Connecting to iPhone…",
+    active: status.label ? `Spoofing · ${status.label}` : "Spoofing",
+    walking: status.label ? `On the way to ${status.label}` : "Moving…",
+    error: "Can’t reach iPhone",
+  }[s] || s;
+
+  if (spoofing) meMarker.setLngLat([status.position[1], status.position[0]]).addTo(map); else meMarker.remove();
+  $("recenter").disabled = !spoofing;
+  drawRoute(s === "walking" ? status.walk_route || [] : []);
+
+  let html;
+  if (s === "walking") {
+    const left = status.walk_remaining_m || 0;
+    walkTotal = Math.max(walkTotal, left);
+    const pct = walkTotal ? Math.min(100, 100 * (1 - left / walkTotal)) : 0;
+    const sp = SPEEDS.find((x) => x.kmh === status.walk_speed_kmh) || { verb: "Moving" };
+    html = `<div class="head"><div>
+        <div class="title">${esc(status.label || "On the way")}</div>
+        <div class="subtitle">${sp.verb} at ${status.walk_speed_kmh} km/h</div>
+      </div></div>
+      <div class="stats">
+        <div class="stat"><div class="v">${fmtDist(left)}</div><div class="k">Remaining</div></div>
+        <div class="stat"><div class="v">${fmtTime(left / (status.walk_speed_kmh / 3.6))}</div><div class="k">Time left</div></div>
+      </div>
+      <div class="progress" role="progressbar" aria-label="Trip progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><div style="width:${pct}%"></div></div>
+      <button class="btn plain" data-act="stop">${icon("stop")} Stop Here</button>
+      ${resetRow()}`;
+  } else if (picked) {
+    const fav = !!findFav(picked);
+    html = `${errorBox()}
+      <div class="head"><div>
+          <div class="title">${esc(picked.title)}</div>
+          ${picked.subtitle ? `<div class="subtitle">${esc(picked.subtitle)}</div>` : ""}
+          <button class="coords" data-act="copy" aria-label="Copy coordinates">${picked.lat.toFixed(5)}, ${picked.lon.toFixed(5)} ${icon("copy")}</button>
+        </div>
+        <button class="round ${fav ? "on" : ""}" data-act="fav" aria-label="${fav ? "Remove from Saved" : "Save place"}" aria-pressed="${fav}">${icon("star")}</button>
+        <button class="round" data-act="dismiss" aria-label="Close">${icon("x")}</button>
+      </div>
+      <div class="actions">
+        <button class="btn primary" data-act="teleport" ${busy ? "disabled" : ""}>${busy === "teleport" ? spinner : icon("zap")} Teleport</button>
+        <button class="btn tinted" data-act="walk" ${spoofing && !busy ? "" : "disabled"}>${busy === "walk" ? spinner : icon(SPEEDS[speedIdx].icon)} ${SPEEDS[speedIdx].label}</button>
+      </div>
+      ${speedControl(!spoofing)}
+      ${busy === "teleport" ? `<div class="hint">Connecting to your iPhone… the first time can take a few seconds.</div>`
+        : spoofing ? "" : `<div class="hint">Teleport first, then you can walk, run, bike or drive from there.</div>`}
+      ${resetRow()}`;
+  } else {
+    html = `${errorBox()}
+      <div class="head"><div>
+        <div class="title">${spoofing ? esc(status.label || "Fake location on") : "Where to?"}</div>
+        <div class="subtitle">${spoofing ? "Your iPhone thinks it’s here. Pick another spot to move." : "Search, or tap anywhere on the map."}</div>
+      </div></div>
+      <div class="section-label">Saved</div>
+      ${favChips()}
+      ${resetRow()}`;
+  }
+  const key = viewKey(s);
+  $("view").innerHTML = `<div class="${key !== lastView ? "view" : ""}">${html}</div>`;
+  lastView = key;
+  layoutFabs();
+}
+
+$("view").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.speed) {
+    speedIdx = +b.dataset.speed;
+    try { localStorage.setItem("speedIdx", speedIdx); } catch (e) {}
+    return render();
+  }
+  if (b.dataset.fav) {
+    const f = favorites[+b.dataset.fav];
+    choose(f.lat, f.lon, f.name, "Saved place");
+    return map.flyTo({ center: [f.lon, f.lat], zoom: 16 });
+  }
+  ({
+    teleport, walk, reset, copy: copyCoords, fav: toggleFav, stop: stopWalk,
+    dismiss: () => { picked = null; pinMarker.remove(); errorMsg = ""; render(); },
+  })[b.dataset.act]?.();
+});
+
+$("recenter").onclick = () => status.position &&
+  map.flyTo({ center: [status.position[1], status.position[0]], zoom: Math.max(map.getZoom(), 15) });
+
+/* keep floating button + map attribution clear of the sheet */
+const isWide = () => innerWidth >= 768;
+function layoutFabs() {
+  const h = isWide() ? 0 : $("sheet").offsetHeight;
+  $("fabs").style.bottom = (isWide() ? 24 : h + 12) + "px";
+  document.documentElement.style.setProperty("--attrib-offset", h + "px");
+}
+const fitPadding = () => isWide()
+  ? { top: 80, bottom: 60, left: 450, right: 80 }
+  : { top: 150, bottom: $("sheet").offsetHeight + 40, left: 40, right: 40 };
+addEventListener("resize", layoutFabs);
+
+/* ================= toast ================= */
+let toastTimer;
+function toast(text, bad = false) {
+  const t = $("toast");
+  t.className = "toast glass" + (bad ? " bad" : "");
+  t.innerHTML = icon(bad ? "alert" : "check") + `<span>${esc(text)}</span>`;
+  requestAnimationFrame(() => t.classList.add("show"));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ================= polling ================= */
+let lastJson = "", stopping = false;
+async function poll() {
+  try {
+    const next = await api("/api/status");
+    const json = JSON.stringify(next);
+    if (json === lastJson) return;
+    if (status.status === "walking" && next.status !== "walking" && next.position && !stopping) toast("Arrived");
+    lastJson = json; status = next;
+    render();
+  } catch (e) {}
+}
+
+(async () => {
+  applyTheme();
+  render();
+  favorites = await api("/api/favorites").catch(() => []);
+  await poll();
+  render();
+  if (status.position) map.jumpTo({ center: [status.position[1], status.position[0]], zoom: 15 });
+  (function loop() { setTimeout(async () => { await poll(); loop(); }, status.status === "walking" ? 1000 : 2000); })();
+})();
+</script>
+</body>
+</html>

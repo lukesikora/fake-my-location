@@ -1,0 +1,9 @@
+{
+  "name": "FML · Fake My Location",
+  "short_name": "FML",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d10",
+  "theme_color": "#2563eb",
+  "icons": [{ "src": "/icon.png", "sizes": "180x180", "type": "image/png" }]
+}
