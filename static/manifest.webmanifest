@@ -3,7 +3,7 @@
   "short_name": "FML",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b0d10",
-  "theme_color": "#2563eb",
+  "background_color": "#140c22",
+  "theme_color": "#c86bff",
   "icons": [{ "src": "/icon.png", "sizes": "180x180", "type": "image/png" }]
 }

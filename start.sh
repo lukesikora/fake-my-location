@@ -13,4 +13,5 @@ if [ ! -x .venv/bin/python ]; then
 fi
 
 clear
-exec .venv/bin/python server.py --open
+# caffeinate keeps the Mac awake while FML runs (if it sleeps, the iPhone snaps back to its real location)
+exec caffeinate -i .venv/bin/python server.py --open

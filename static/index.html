@@ -12,7 +12,7 @@
 <script>
   /* Saved per device. Runs before paint so there's no flash of the wrong theme. */
   (function () {
-    var mode = "auto", theme = "classic";
+    var mode = "auto", theme = "neon";
     try { mode = localStorage.getItem("mode") || mode; theme = localStorage.getItem("theme") || theme; } catch (e) {}
     var dark = theme === "neon" || mode === "dark" || (mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.mode = dark ? "dark" : "light";
@@ -77,6 +77,7 @@
     --thumb: #636366;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .4), 0 4px 16px rgba(0, 0, 0, .35);
     --shadow-2: 0 2px 6px rgba(0, 0, 0, .4), 0 12px 40px rgba(0, 0, 0, .55);
+    --map-filter: saturate(.35) brightness(.85) contrast(1.25);
   }
 
   /* ---------- color themes (accent + map tint) ---------- */
@@ -95,7 +96,7 @@
     --on-accent: #ffffff;
     --green: #3dffa2;
     --glow: 0 0 0 1px rgba(255, 255, 255, .08), 0 6px 24px rgba(200, 80, 255, .55);
-    --map-filter: sepia(.9) hue-rotate(225deg) saturate(3.2) brightness(.95) contrast(1.05);
+    --map-filter: hue-rotate(48deg) saturate(1.7) brightness(.78) contrast(1.35);
   }
   :root[data-theme="ocean"] {
     --accent: #0284c7; --accent-2: #06b6d4; --accent-tint: rgba(2, 132, 199, .12);
@@ -113,7 +114,7 @@
   }
   :root[data-theme="sunset"][data-mode="dark"] {
     --accent: #ff7a45; --accent-2: #ff3d8b; --accent-tint: rgba(255, 122, 69, .18);
-    --map-filter: sepia(.8) hue-rotate(-35deg) saturate(2.4) brightness(.95);
+    --map-filter: hue-rotate(165deg) saturate(1.1) brightness(.8) contrast(1.3);
   }
   :root[data-theme="forest"] {
     --accent: #2b8a3e; --accent-2: #12b886; --accent-tint: rgba(43, 138, 62, .12);
@@ -122,7 +123,7 @@
   }
   :root[data-theme="forest"][data-mode="dark"] {
     --accent: #51cf66; --accent-2: #20c997; --accent-tint: rgba(81, 207, 102, .16); --on-accent: #04170a;
-    --map-filter: sepia(.8) hue-rotate(60deg) saturate(1.8) brightness(.95);
+    --map-filter: hue-rotate(-85deg) saturate(1.1) brightness(.8) contrast(1.3);
   }
   :root[data-theme="mono"] {
     --accent: #111111; --accent-tint: rgba(0, 0, 0, .08); --on-accent: #ffffff;
@@ -130,6 +131,7 @@
   }
   :root[data-theme="mono"][data-mode="dark"] {
     --accent: #f5f5f7; --accent-tint: rgba(255, 255, 255, .12); --on-accent: #000000;
+    --map-filter: grayscale(1) brightness(.9) contrast(1.25);
   }
 
   /* ---------- base ---------- */
@@ -193,6 +195,10 @@
     border: 2px solid var(--green); animation: ring 1.8s ease-out infinite; }
   .dot.connecting { background: var(--orange); animation: blink 1s ease-in-out infinite; }
   .dot.error { background: var(--red); }
+
+  .update-banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md);
+    background: var(--orange); color: #1a0f00; font-size: 14px; box-shadow: var(--shadow-1); }
+  .update-banner .i { margin-top: 1px; }
 
   /* ---------- floating controls ---------- */
   .fabs { position: fixed; z-index: 15; right: var(--gutter); display: flex; flex-direction: column; gap: 8px;
@@ -283,6 +289,43 @@
   .route-svg .line { stroke: var(--accent); stroke-width: 5; }
   :root[data-theme="neon"] .route-svg .line { filter: drop-shadow(0 0 4px var(--accent)) drop-shadow(0 0 10px var(--accent-2)); }
 
+  /* ---------- live speed ---------- */
+  .stats { gap: 22px; }
+  .speed-box { padding: 14px; border-radius: var(--r-md); background: var(--fill); margin-bottom: 12px; }
+  .speed-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; font-weight: 600; }
+  .speed-head output { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--accent); }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; background: none; margin: 4px 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%;
+    background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.08); cursor: grab; }
+  input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border: 0; border-radius: 50%; background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+  .presets { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .presets::-webkit-scrollbar { display: none; }
+  .presets button { flex: 1 0 auto; height: 32px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: var(--glass-strong); color: var(--label); }
+  .presets button.on { background: var(--accent); color: var(--on-accent); }
+  .warn { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); margin-bottom: 14px;
+    background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--label); font-size: 15px; }
+  .warn .i { color: var(--orange); margin-top: 1px; }
+
+  /* ---------- settings toggles ---------- */
+  .list { border-radius: var(--r-md); background: var(--fill); overflow: hidden; }
+  .row-toggle { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+  .row-toggle + .row-toggle { border-top: .5px solid var(--separator); }
+  .row-toggle div { flex: 1; min-width: 0; }
+  .row-toggle b { display: block; font-size: 16px; font-weight: 500; }
+  .row-toggle span { display: block; font-size: 13px; color: var(--label-2); margin-top: 2px; }
+  .switch { -webkit-appearance: none; appearance: none; flex: none; width: 51px; height: 31px; border-radius: 999px;
+    background: var(--fill-2); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.1); transition: transform .25s var(--spring); }
+  .switch:checked { background: var(--green); }
+  .switch:checked::after { transform: translateX(20px); }
+  .picker { max-height: 88vh; overflow-y: auto; }
+
   /* ---------- appearance picker ---------- */
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .35); opacity: 0; pointer-events: none;
     transition: opacity .2s; }
@@ -330,10 +373,8 @@
   .welcome-inner > :nth-child(3) { animation-delay: .16s; }
   .welcome-inner > :nth-child(4) { animation-delay: .24s; }
   .welcome-inner > :nth-child(5) { animation-delay: .32s; }
-  .logo { width: 96px; height: 96px; border-radius: 26px; display: grid; place-items: center; color: var(--on-accent);
-    background: linear-gradient(135deg, var(--accent), var(--accent-2)); margin-bottom: 22px;
-    box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 45%, transparent); }
-  .logo svg { width: 48px; height: 48px; }
+  .logo { width: 96px; height: 96px; display: grid; place-items: center; color: var(--label); margin-bottom: 18px; }
+  .logo svg { width: 96px; height: 96px; }
   .brand { margin: 0; font-size: 64px; font-weight: 800; letter-spacing: -.04em; line-height: 1;
     background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text;
     color: transparent; }
@@ -370,6 +411,11 @@
   .me::after { content: ""; position: absolute; inset: 0; border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35), var(--glow); }
+
+  .nav-marker { filter: drop-shadow(0 0 10px var(--accent)) drop-shadow(0 3px 4px rgba(0, 0, 0, .45)); pointer-events: none; }
+  .nav-marker svg { display: block; }
+  .fab.pulse { animation: fabPulse 1.6s ease-in-out infinite; }
+  @keyframes fabPulse { 50% { box-shadow: 0 0 0 6px var(--accent-tint), var(--shadow-1); } }
 
   /* ---------- wide screens: Apple-Maps-style side card ---------- */
   @media (min-width: 768px) {
@@ -409,12 +455,16 @@
     </button>
   </label>
   <div class="results glass" id="results" role="listbox" aria-label="Search results"></div>
+  <div class="update-banner" id="updateBanner" role="alert" hidden>
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    <div><b>FML was updated.</b> Close the FML window on your Mac and open FML again to finish.</div>
+  </div>
   <div class="pill glass" id="pill" aria-live="polite"><span class="dot" id="dot"></span><span id="pillText">Real location</span></div>
 </div>
 
 <div class="fabs" id="fabs">
   <button class="fab glass" id="modeBtn" aria-label="Switch to dark mode"></button>
-  <button class="fab glass" id="themeBtn" aria-label="Themes" aria-haspopup="dialog">
+  <button class="fab glass" id="themeBtn" aria-label="Settings and themes" aria-haspopup="dialog">
     <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>
   </button>
   <button class="fab glass" id="recenter" aria-label="Show fake location" disabled>
@@ -430,7 +480,7 @@
 <div class="scrim" id="scrim"></div>
 <section class="picker" id="picker" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
   <div class="grabber" aria-hidden="true"></div>
-  <div class="head"><div><div class="title" id="pickerTitle">Appearance</div></div>
+  <div class="head"><div><div class="title" id="pickerTitle">Settings</div></div>
     <button class="round" id="pickerClose" aria-label="Close">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
@@ -440,10 +490,11 @@
 <div class="welcome" id="welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
   <div class="welcome-inner">
     <div class="logo" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+      <!-- dashed ring = where you really are, solid dot = where they see you -->
+      <svg viewBox="0 0 32 32"><circle cx="11.5" cy="20.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="3 2.6" opacity=".7"/><circle cx="20.5" cy="11.5" r="8.5" fill="var(--accent)" opacity=".22"/><circle cx="20.5" cy="11.5" r="5" fill="var(--accent)" stroke="#fff" stroke-width="1.6"/></svg>
     </div>
     <h1 class="brand" id="welcomeTitle">FML</h1>
-    <div class="brand-sub">Fake My Location</div>
+    <div class="brand-sub">(Fake My Location)</div>
     <div class="byline">Created by <strong>Luke Sikora</strong></div>
     <div style="width:100%">
       <ol class="steps">
@@ -479,19 +530,25 @@ const I = {
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = (id) => document.getElementById(id);
+const PAGE_VERSION = 3;  // must match VERSION in server.py
 
 /* ================= state ================= */
+const KMH_PER_MPH = 1.609344;
+const toMph = (kmh) => kmh / KMH_PER_MPH;
+const toKmh = (mph) => mph * KMH_PER_MPH;
 const SPEEDS = [
-  { kmh: 5, label: "Walk", verb: "Walking", icon: "feet" },
-  { kmh: 10, label: "Run", verb: "Running", icon: "run" },
-  { kmh: 18, label: "Bike", verb: "Biking", icon: "bike" },
-  { kmh: 50, label: "Drive", verb: "Driving", icon: "car" },
+  { kmh: toKmh(3), label: "Walk", verb: "Walking", icon: "feet" },
+  { kmh: toKmh(6), label: "Run", verb: "Running", icon: "run" },
+  { kmh: toKmh(12), label: "Bike", verb: "Biking", icon: "bike" },
+  { kmh: toKmh(30), label: "Drive", verb: "Driving", icon: "car" },
 ];
 let picked = null;          // { lat, lon, title, subtitle }
 let status = { status: "idle" };
 let favorites = [];
 let speedIdx = 0;
-let busy = null;            // "teleport" | "walk" | "reset"
+let busy = null;
+let warnJumps = true;
+try { warnJumps = localStorage.getItem("warnJumps") !== "0"; } catch (e) {}            // "teleport" | "walk" | "reset"
 let walkTotal = 0;
 let errorMsg = "";
 try { speedIdx = +(localStorage.getItem("speedIdx") || 0) % SPEEDS.length; } catch (e) {}
@@ -519,13 +576,14 @@ const THEMES = [
 ];
 const root = document.documentElement;
 const sysDark = matchMedia("(prefers-color-scheme: dark)");
-const prefs = { mode: "auto", theme: "classic" };
+const prefs = { mode: "auto", theme: "neon" };
 try {
   prefs.mode = localStorage.getItem("mode") || "auto";
-  prefs.theme = THEMES.some((t) => t.id === localStorage.getItem("theme")) ? localStorage.getItem("theme") : "classic";
+  prefs.theme = THEMES.some((t) => t.id === localStorage.getItem("theme")) ? localStorage.getItem("theme") : "neon";
 } catch (e) {}
 const isDark = () => prefs.theme === "neon" || prefs.mode === "dark" || (prefs.mode === "auto" && sysDark.matches);
-const mapStyleName = () => !isDark() ? "positron" : prefs.theme === "ocean" ? "fiord" : "dark";
+// "fiord" has much clearer streets than the plain dark map; each theme tints it with --map-filter
+const mapStyleName = () => isDark() ? "fiord" : "positron";
 const styleUrl = (name) => `https://tiles.openfreemap.org/styles/${name}`;
 const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
 let currentStyle = mapStyleName();
@@ -571,6 +629,13 @@ function renderPicker() {
         ${m === "auto" ? "Automatic" : m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
     </div>
     ${neon ? `<div class="note">Neon is always dark.</div>` : prefs.mode === "auto" ? `<div class="note">Follows your device’s light or dark setting.</div>` : ""}
+    <div class="section-label">Stealth</div>
+    <div class="list">
+      <label class="row-toggle"><div><b>Natural GPS drift</b><span>Real GPS wobbles a few metres. Without it, a parked location looks frozen.</span></div>
+        <input type="checkbox" class="switch" data-setting="drift" ${status.drift !== false ? "checked" : ""}></label>
+      <label class="row-toggle"><div><b>Warn before big jumps</b><span>Suggests driving instead of teleporting far, so location history looks normal.</span></div>
+        <input type="checkbox" class="switch" data-setting="jumps" ${warnJumps ? "checked" : ""}></label>
+    </div>
     <div class="section-label">Theme</div>
     <div class="themes" role="radiogroup" aria-label="Color theme">
       ${THEMES.map((t) => `<button class="theme" role="radio" data-theme="${t.id}" aria-checked="${t.id === prefs.theme}">
@@ -578,6 +643,17 @@ function renderPicker() {
     </div>
     <button class="about" data-about="1"><strong>FML</strong> · Fake My Location · Created by Luke Sikora</button>`;
 }
+$("pickerBody").addEventListener("change", async (e) => {
+  const k = e.target.dataset.setting; if (!k) return;
+  if (k === "jumps") {
+    warnJumps = e.target.checked;
+    try { localStorage.setItem("warnJumps", warnJumps ? "1" : "0"); } catch (err) {}
+  }
+  if (k === "drift") {
+    try { status = await api("/api/settings", { method: "POST", body: JSON.stringify({ drift: e.target.checked }) }); }
+    catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  }
+});
 $("pickerBody").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b || b.disabled) return;
   if (b.dataset.about) { closePicker(); return openWelcome(); }
@@ -620,6 +696,85 @@ function renderPin() {
 const meEl = document.createElement("div"); meEl.className = "me";
 const meMarker = new maplibregl.Marker({ element: meEl });
 
+/* ================= GPS-style view while moving =================
+   A car (or arrow when walking) that points where you're going. The map turns and tilts so the
+   direction of travel is always "up", like turn-by-turn navigation, and glides between updates. */
+const navEl = document.createElement("div"); navEl.className = "nav-marker";
+const navMarker = new maplibregl.Marker({ element: navEl, rotationAlignment: "map", pitchAlignment: "viewport" });
+const CAR_SVG = `<svg viewBox="0 0 36 60" width="38" height="63" aria-hidden="true">
+  <defs><linearGradient id="carBody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient></defs>
+  <rect x="3" y="2" width="30" height="56" rx="11" fill="url(#carBody)" stroke="#fff" stroke-width="2"/>
+  <path d="M8 18 Q18 12 28 18 L26 26 Q18 22.5 10 26 Z" fill="rgba(12,0,30,.78)"/>
+  <rect x="10" y="27" width="16" height="15" rx="3" fill="rgba(255,255,255,.2)"/>
+  <path d="M10 44 Q18 47 26 44 L27 50 Q18 53 9 50 Z" fill="rgba(12,0,30,.6)"/>
+  <rect x="6" y="4" width="6" height="3" rx="1.5" fill="#fffbd1"/><rect x="24" y="4" width="6" height="3" rx="1.5" fill="#fffbd1"/>
+</svg>`;
+const ARROW_SVG = `<svg viewBox="0 0 40 40" width="46" height="46" aria-hidden="true">
+  <defs><linearGradient id="arrowBody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient></defs>
+  <circle cx="20" cy="20" r="16" fill="url(#arrowBody)" stroke="#fff" stroke-width="3"/>
+  <path d="M20 9.5 27.5 27 20 22.5 12.5 27Z" fill="#fff"/>
+</svg>`;
+let navOn = false, follow = true, navKind = "", navEaseUntil = 0;
+const nav = { from: null, to: null, fromH: 0, toH: 0, t0: 0, dur: 1000, lastAt: 0, pos: null, h: 0, raf: 0 };
+const turnTo = (a, b, t) => a + ((((b - a) % 360) + 540) % 360 - 180) * t;   // shortest way round
+const navZoom = () => (status.walk_speed_kmh || 0) > 35 ? 16.3 : 17.4;
+const navPadding = () => isWide()
+  ? { top: 160, bottom: 40, left: 440, right: 40 }
+  : { top: Math.round(innerHeight * 0.3), bottom: $("sheet").offsetHeight + 16, left: 0, right: 0 };
+
+function setNavKind() {
+  const kind = (status.walk_speed_kmh || 0) > 22 ? "car" : "arrow";
+  if (kind !== navKind) { navKind = kind; navEl.innerHTML = kind === "car" ? CAR_SVG : ARROW_SVG; }
+}
+
+function startNav() {
+  navOn = true;
+  setNavKind();
+  nav.pos = nav.to = status.position; nav.h = nav.toH = status.heading || 0;
+  nav.lastAt = performance.now(); nav.t0 = nav.lastAt;
+  meMarker.remove();
+  navMarker.setLngLat([nav.pos[1], nav.pos[0]]).setRotation(nav.h).addTo(map);
+  if (follow) {
+    navEaseUntil = performance.now() + 1300;
+    map.easeTo({ center: [nav.pos[1], nav.pos[0]], bearing: nav.h, pitch: 60, zoom: navZoom(), padding: navPadding(), duration: 1200 });
+  }
+  cancelAnimationFrame(nav.raf);
+  nav.raf = requestAnimationFrame(navFrame);
+}
+
+function updateNav() {
+  setNavKind();
+  const p = status.position;
+  if (nav.to && p[0] === nav.to[0] && p[1] === nav.to[1]) return;
+  const now = performance.now();
+  nav.from = nav.pos; nav.to = p;
+  nav.fromH = nav.h; nav.toH = status.heading ?? nav.h;
+  nav.dur = Math.min(1600, Math.max(700, now - nav.lastAt));   // glide over the time between updates
+  nav.lastAt = nav.t0 = now;
+}
+
+function navFrame(now) {
+  if (!navOn) return;
+  if (nav.from && nav.to) {
+    const k = Math.min(1, (now - nav.t0) / nav.dur);
+    nav.pos = [nav.from[0] + (nav.to[0] - nav.from[0]) * k, nav.from[1] + (nav.to[1] - nav.from[1]) * k];
+    nav.h = turnTo(nav.fromH, nav.toH, Math.min(1, k * 1.6));
+    navMarker.setLngLat([nav.pos[1], nav.pos[0]]).setRotation(nav.h);
+    if (follow && now > navEaseUntil) map.jumpTo({ center: [nav.pos[1], nav.pos[0]], bearing: nav.h, pitch: 60, padding: navPadding() });
+  }
+  nav.raf = requestAnimationFrame(navFrame);
+}
+
+function stopNav() {
+  navOn = false; navKind = "";
+  cancelAnimationFrame(nav.raf);
+  navMarker.remove();
+  map.easeTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 900 });
+}
+
+// dragging the map while moving stops following; the arrow button brings it back
+map.on("dragstart", (e) => { if (navOn && e.originalEvent) { follow = false; $("recenter").classList.add("pulse"); } });
+
 /* Route is drawn as SVG above the map canvas, so the theme's map tint doesn't recolor it. */
 const SVGNS = "http://www.w3.org/2000/svg";
 const routeSvg = document.createElementNS(SVGNS, "svg");
@@ -630,7 +785,7 @@ map.getCanvasContainer().appendChild(routeSvg);
 let routePts = [], routeKey = "";
 
 function drawRoute(route) {
-  const key = route.length ? route.length + ":" + route[route.length - 1] : "";
+  const key = route.length ? route.length + ":" + route[0] + ":" + route[route.length - 1] : "";
   if (key !== routeKey) { routeKey = key; routePts = route; }
   const d = routePts.map(([la, lo], i) => { const p = map.project([lo, la]); return (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1); }).join("");
   routeSvg.querySelectorAll("path").forEach((el) => el.setAttribute("d", d));
@@ -654,7 +809,7 @@ async function api(path, opts = {}) {
 /* ================= choosing a spot ================= */
 function choose(lat, lon, title, subtitle, reverse = false) {
   picked = { lat, lon, title, subtitle };
-  errorMsg = "";
+  errorMsg = ""; confirmJump = false;
   renderPin();
   pinMarker.setLngLat([lon, lat]).addTo(map);
   render();
@@ -678,67 +833,121 @@ async function reverseGeocode(p) {
 
 /* ================= search ================= */
 const q = $("q"), results = $("results");
-let searchTimer, searchSeq = 0;
+let searchTimer, searchSeq = 0, searchCtl = null, lastResults = { text: "", items: [] };
 q.addEventListener("input", () => {
   $("clearQ").hidden = !q.value;
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(search, 350);
+  searchTimer = setTimeout(search, 250);
 });
 q.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { clearTimeout(searchTimer); search(true); }
+  if (e.key === "Enter") {
+    clearTimeout(searchTimer);
+    // results for this exact text are already showing: take the top one right away
+    if (lastResults.text === q.value.trim() && lastResults.items[0]) return selectResult(lastResults.items[0]);
+    search(true);
+  }
   if (e.key === "Escape") { closeResults(); q.blur(); }
 });
 $("clearQ").onclick = (e) => { e.preventDefault(); q.value = ""; $("clearQ").hidden = true; closeResults(); q.focus(); };
-function closeResults() { searchSeq++; results.classList.remove("open"); results.innerHTML = ""; }
+function closeResults() { searchSeq++; searchCtl?.abort(); results.classList.remove("open"); results.innerHTML = ""; }
 
-function splitPlace(it) {
+const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
+
+function fromPhoton(f) {
+  const p = f.properties;
+  const street = [p.housenumber, p.street].filter(Boolean).join(" ");
+  const title = p.name || street || p.city || p.county || p.state || "Place";
+  const sub = uniq([title === street ? null : street, p.city || p.district || p.county, p.state,
+    p.countrycode && p.countrycode !== "US" ? p.country : null]).filter((x) => x !== title).slice(0, 3).join(", ");
+  return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], title, subtitle: sub };
+}
+function fromNominatim(it) {
   const parts = it.display_name.split(", ");
   const title = it.name || parts[0];
-  return { title, subtitle: parts.filter((x) => x !== title).slice(0, 3).join(", ") };
+  return { lat: +it.lat, lon: +it.lon, title, subtitle: parts.filter((x) => x !== title).slice(0, 3).join(", ") };
+}
+
+async function geocode(text, signal) {
+  const c = map.getCenter();
+  try {
+    const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=7&lang=en` +
+      `&lat=${c.lat.toFixed(4)}&lon=${c.lng.toFixed(4)}`, { signal });
+    if (r.ok) {
+      const items = (await r.json()).features.map(fromPhoton);
+      if (items.length) return items;
+    }
+  } catch (e) { if (e.name === "AbortError") throw e; }
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=${encodeURIComponent(text)}`, { signal });
+  return (await r.json()).map(fromNominatim);
+}
+
+/* "41.88, -87.63", or a pasted Google / Apple Maps link */
+function parseCoords(text) {
+  const pats = [
+    /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/,
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&](?:q|ll|sll|daddr|query|center)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/,
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+  ];
+  for (const re of pats) {
+    const m = text.match(re);
+    if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) return [+m[1], +m[2]];
+  }
+  return null;
 }
 
 async function search(pickFirst = false) {
   const text = q.value.trim();
   if (!text) return closeResults();
-  const m = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
-  if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) {
-    closeResults(); q.blur();
-    choose(+m[1], +m[2], "Coordinates", "", true);
-    map.flyTo({ center: [+m[2], +m[1]], zoom: 16 });
+  const ll = parseCoords(text);
+  if (ll) {
+    closeResults(); q.blur(); q.value = ""; $("clearQ").hidden = true;
+    choose(ll[0], ll[1], "Dropped Pin", "", true);
+    map.flyTo({ center: [ll[1], ll[0]], zoom: 16 });
     return;
   }
+  if (text.length < 2) return;
   const seq = ++searchSeq;
-  const b = map.getBounds();
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=${encodeURIComponent(text)}` +
-    `&viewbox=${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
+  searchCtl?.abort();
+  searchCtl = new AbortController();
+  if (!results.classList.contains("open")) {
+    results.innerHTML = `<div class="empty-results">Searching…</div>`;
+    results.classList.add("open");
+  }
   try {
-    const items = await (await fetch(url)).json();
+    const items = await geocode(text, searchCtl.signal);
     if (seq !== searchSeq) return;
+    lastResults = { text, items };
     if (pickFirst && items[0]) return selectResult(items[0]);
-    results.innerHTML = items.length ? "" : `<div class="empty-results">No places found for “${esc(text)}”.</div>`;
+    results.innerHTML = items.length ? "" :
+      `<div class="empty-results">No places found for “${esc(text)}”. Try adding a city, like “Starbucks Chicago”.</div>`;
     items.forEach((it) => {
-      const { title, subtitle } = splitPlace(it);
       const btn = document.createElement("button");
       btn.className = "result"; btn.setAttribute("role", "option");
-      btn.innerHTML = `<span class="badge">${icon("pin")}</span><div><div class="t">${esc(title)}</div><div class="s">${esc(subtitle)}</div></div>`;
+      btn.innerHTML = `<span class="badge">${icon("pin")}</span><div><div class="t">${esc(it.title)}</div><div class="s">${esc(it.subtitle)}</div></div>`;
       btn.onclick = () => selectResult(it);
       results.appendChild(btn);
     });
     results.classList.add("open");
   } catch (e) {
+    if (e.name === "AbortError" || seq !== searchSeq) return;
     results.innerHTML = `<div class="empty-results">Search isn’t available right now. Check your internet connection.</div>`;
     results.classList.add("open");
   }
 }
 function selectResult(it) {
-  const { title, subtitle } = splitPlace(it);
-  choose(+it.lat, +it.lon, title, subtitle);
-  map.flyTo({ center: [+it.lon, +it.lat], zoom: 16 });
-  q.value = ""; $("clearQ").hidden = true; closeResults(); q.blur();
+  choose(it.lat, it.lon, it.title, it.subtitle);
+  map.flyTo({ center: [it.lon, it.lat], zoom: 16 });
+  q.value = ""; $("clearQ").hidden = true; lastResults = { text: "", items: [] }; closeResults(); q.blur();
 }
 
 /* ================= actions ================= */
-async function teleport() {
+const JUMP_WARN_M = 800;
+async function teleport(force = false) {
+  if (!force && warnJumps && status.position && distanceM(status.position, [picked.lat, picked.lon]) > JUMP_WARN_M) {
+    confirmJump = true; return render();
+  }
+  confirmJump = false;
   busy = "teleport"; errorMsg = ""; render();
   try {
     status = await api("/api/set", { method: "POST",
@@ -750,6 +959,7 @@ async function teleport() {
 }
 
 async function walk() {
+  confirmJump = false;
   busy = "walk"; errorMsg = ""; render();
   const sp = SPEEDS[speedIdx];
   try {
@@ -758,9 +968,7 @@ async function walk() {
     walkTotal = 0;
     toast(`${sp.verb} to ${picked.title}`);
     pinMarker.remove(); picked = null;
-    const lons = r.route.map((p) => p[1]), lats = r.route.map((p) => p[0]);
-    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
-      { padding: fitPadding(), maxZoom: 17 });
+    follow = true;
     await poll();
   } catch (e) { errorMsg = e.message; }
   busy = null; render();
@@ -799,7 +1007,10 @@ async function copyCoords() {
 }
 
 /* ================= rendering ================= */
-const fmtDist = (m) => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+const fmtDist = (m) => {
+  const mi = m / 1609.344;
+  return mi < 0.1 ? `${Math.max(50, Math.round(m * 3.28084 / 50) * 50)} ft` : `${mi.toFixed(mi < 10 ? 1 : 0)} mi`;
+};
 const fmtTime = (s) => s < 60 ? "<1 min" : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
 const spinner = '<span class="spin" aria-hidden="true"></span>';
 
@@ -824,11 +1035,67 @@ function errorBox() {
 function resetRow() {
   if (!status.position) return "";
   return `<div class="reset-row"><button class="btn danger" data-act="reset" ${busy ? "disabled" : ""}>
-    ${busy === "reset" ? spinner : icon("undo")} Back to Real Location</button></div>`;
+    ${busy === "reset" ? spinner : icon("undo")} Back to Real Location</button>
+    <div class="hint">Tip: drive back to where you really are first, so there’s no jump when you turn it off.</div></div>`;
 }
 
-let lastView = "";
-const viewKey = (s) => s === "walking" ? "walk" : picked ? "picked:" + picked.lat + "," + picked.lon : "home";
+function routeAhead() {
+  const r = status.walk_route || [], p = status.position;
+  if (!r.length || !p) return r;
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < r.length; i++) { const d = (r[i][0] - p[0]) ** 2 + (r[i][1] - p[1]) ** 2; if (d < bestD) { bestD = d; best = i; } }
+  return [p, ...r.slice(best + 1)];
+}
+
+let lastView = "", confirmJump = false, sliderBusy = false, speedTimer;
+let pendingSpeed = null;   // { kmh, until }: a speed you just set, kept even if an older status arrives
+
+function updateWalking() {
+  const left = status.walk_remaining_m || 0;
+  walkTotal = Math.max(walkTotal, left);
+  const pct = walkTotal ? Math.min(100, 100 * (1 - left / walkTotal)) : 0;
+  const targetKmh = status.walk_speed_kmh || toKmh(3);
+  const target = Math.round(toMph(targetKmh));
+  const now = toMph(status.speed_now_kmh || 0);
+  const verb = target <= 4 ? "Walking" : target <= 8 ? "Running" : target <= 16 ? "Biking" : "Driving";
+  $("wTitle").textContent = status.label || "On the way";
+  $("wSub").textContent = `${verb} · cruising at ${target} mph`;
+  $("wNow").textContent = `${Math.round(now)} mph`;
+  $("wLeft").textContent = fmtDist(left);
+  $("wTime").textContent = fmtTime(left / (Math.max(status.speed_now_kmh || 0, targetKmh * 0.8) / 3.6));
+  $("wBar").style.width = pct + "%";
+  $("wBar").parentElement.setAttribute("aria-valuenow", Math.round(pct));
+  if (!sliderBusy) { $("speedSlider").value = target; $("speedOut").textContent = `${target} mph`; }
+  for (const b of $("presets").children) b.classList.toggle("on", +b.dataset.preset === target);
+  const resetBtn = $("view").querySelector('[data-act="reset"]');
+  if (resetBtn) resetBtn.disabled = !!busy;
+}
+
+function changeSpeed(mph) {
+  const kmh = toKmh(mph);
+  $("speedOut").textContent = `${mph} mph`;
+  status.walk_speed_kmh = kmh;
+  pendingSpeed = { kmh, until: Date.now() + 5000 };
+  clearTimeout(speedTimer);
+  speedTimer = setTimeout(() => api("/api/speed", { method: "POST", body: JSON.stringify({ speed_kmh: kmh }) })
+    .then((r) => { sliderBusy = false; status = r; updateWalking(); })
+    .catch((e) => {
+      sliderBusy = false; pendingSpeed = null;
+      toast(/not found/i.test(e.message) ? "Restart FML to use this (it was updated)" : e.message, true);
+    }), 250);
+}
+$("view").addEventListener("input", (e) => {
+  if (e.target.id !== "speedSlider") return;
+  sliderBusy = true; changeSpeed(+e.target.value);
+});
+
+function distanceM(a, b) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const viewKey = (s) => s === "walking" ? "walk" : picked ? (confirmJump ? "jump:" : "picked:") + picked.lat + "," + picked.lon : "home";
 
 function render() {
   const s = status.status;
@@ -842,27 +1109,51 @@ function render() {
     error: "Can’t reach iPhone",
   }[s] || s;
 
-  if (spoofing) meMarker.setLngLat([status.position[1], status.position[0]]).addTo(map); else meMarker.remove();
+  if (s === "walking" && spoofing) {
+    navOn ? updateNav() : startNav();
+  } else {
+    if (navOn) stopNav();
+    if (spoofing) meMarker.setLngLat([status.position[1], status.position[0]]).addTo(map); else meMarker.remove();
+  }
   $("recenter").disabled = !spoofing;
-  drawRoute(s === "walking" ? status.walk_route || [] : []);
+  drawRoute(s === "walking" ? routeAhead() : []);
 
   let html;
   if (s === "walking") {
-    const left = status.walk_remaining_m || 0;
-    walkTotal = Math.max(walkTotal, left);
-    const pct = walkTotal ? Math.min(100, 100 * (1 - left / walkTotal)) : 0;
-    const sp = SPEEDS.find((x) => x.kmh === status.walk_speed_kmh) || { verb: "Moving" };
+    if (lastView === "walk" && $("wLeft")) { updateWalking(); layoutFabs(); return; }
     html = `<div class="head"><div>
-        <div class="title">${esc(status.label || "On the way")}</div>
-        <div class="subtitle">${sp.verb} at ${status.walk_speed_kmh} km/h</div>
+        <div class="title" id="wTitle"></div>
+        <div class="subtitle" id="wSub"></div>
       </div></div>
       <div class="stats">
-        <div class="stat"><div class="v">${fmtDist(left)}</div><div class="k">Remaining</div></div>
-        <div class="stat"><div class="v">${fmtTime(left / (status.walk_speed_kmh / 3.6))}</div><div class="k">Time left</div></div>
+        <div class="stat"><div class="v" id="wNow"></div><div class="k">Speed now</div></div>
+        <div class="stat"><div class="v" id="wLeft"></div><div class="k">Remaining</div></div>
+        <div class="stat"><div class="v" id="wTime"></div><div class="k">Time left</div></div>
       </div>
-      <div class="progress" role="progressbar" aria-label="Trip progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><div style="width:${pct}%"></div></div>
+      <div class="progress" role="progressbar" aria-label="Trip progress" aria-valuemin="0" aria-valuemax="100"><div id="wBar"></div></div>
+      <div class="speed-box">
+        <label class="speed-head" for="speedSlider"><span>Speed</span><output id="speedOut"></output></label>
+        <input type="range" id="speedSlider" min="2" max="80" step="1">
+        <div class="presets" id="presets">
+          ${[["Walk", 3], ["Run", 6], ["Bike", 12], ["City", 25], ["Highway", 65]].map(([n, v]) =>
+            `<button data-preset="${v}">${n}</button>`).join("")}
+        </div>
+      </div>
       <button class="btn plain" data-act="stop">${icon("stop")} Stop Here</button>
       ${resetRow()}`;
+  } else if (picked && confirmJump) {
+    const mi = distanceM(status.position, [picked.lat, picked.lon]) / 1609.344;
+    html = `<div class="head"><div>
+        <div class="title">${esc(picked.title)}</div>
+        <div class="subtitle">${mi < 10 ? mi.toFixed(1) : Math.round(mi)} miles from where you are now</div>
+      </div>
+      <button class="round" data-act="dismiss" aria-label="Close">${icon("x")}</button></div>
+      <div class="warn" role="alert">${icon("alert")}<div><b>That’s a big jump.</b> Location history in apps like Find My or Life360
+        would show you suddenly appearing there. Driving there looks like a normal trip.</div></div>
+      <div class="actions">
+        <button class="btn primary" data-act="drivethere">${icon("car")} Drive There</button>
+        <button class="btn tinted" data-act="teleportanyway">${icon("zap")} Teleport Anyway</button>
+      </div>`;
   } else if (picked) {
     const fav = !!findFav(picked);
     html = `${errorBox()}
@@ -895,6 +1186,7 @@ function render() {
   const key = viewKey(s);
   $("view").innerHTML = `<div class="${key !== lastView ? "view" : ""}">${html}</div>`;
   lastView = key;
+  if (s === "walking") updateWalking();
   layoutFabs();
 }
 
@@ -905,19 +1197,28 @@ $("view").addEventListener("click", (e) => {
     try { localStorage.setItem("speedIdx", speedIdx); } catch (e) {}
     return render();
   }
+  if (b.dataset.preset) { sliderBusy = true; $("speedSlider").value = b.dataset.preset; return changeSpeed(+b.dataset.preset); }
   if (b.dataset.fav) {
     const f = favorites[+b.dataset.fav];
     choose(f.lat, f.lon, f.name, "Saved place");
     return map.flyTo({ center: [f.lon, f.lat], zoom: 16 });
   }
   ({
-    teleport, walk, reset, copy: copyCoords, fav: toggleFav, stop: stopWalk,
-    dismiss: () => { picked = null; pinMarker.remove(); errorMsg = ""; render(); },
+    teleport: () => teleport(), walk, reset, copy: copyCoords, fav: toggleFav, stop: stopWalk,
+    teleportanyway: () => teleport(true),
+    drivethere: () => { speedIdx = 3; walk(); },
+    dismiss: () => { picked = null; confirmJump = false; pinMarker.remove(); errorMsg = ""; render(); },
   })[b.dataset.act]?.();
 });
 
-$("recenter").onclick = () => status.position &&
-  map.flyTo({ center: [status.position[1], status.position[0]], zoom: Math.max(map.getZoom(), 15) });
+$("recenter").onclick = () => {
+  $("recenter").classList.remove("pulse");
+  if (navOn) {
+    follow = true; navEaseUntil = performance.now() + 900;
+    return map.easeTo({ center: [nav.pos[1], nav.pos[0]], bearing: nav.h, pitch: 60, zoom: navZoom(), padding: navPadding(), duration: 800 });
+  }
+  if (status.position) map.flyTo({ center: [status.position[1], status.position[0]], zoom: Math.max(map.getZoom(), 15) });
+};
 
 /* keep floating button + map attribution clear of the sheet */
 const isWide = () => innerWidth >= 768;
@@ -926,9 +1227,6 @@ function layoutFabs() {
   $("fabs").style.bottom = (isWide() ? 24 : h + 12) + "px";
   document.documentElement.style.setProperty("--attrib-offset", h + "px");
 }
-const fitPadding = () => isWide()
-  ? { top: 80, bottom: 60, left: 450, right: 80 }
-  : { top: 150, bottom: $("sheet").offsetHeight + 40, left: 40, right: 40 };
 addEventListener("resize", layoutFabs);
 
 /* ================= toast ================= */
@@ -947,6 +1245,12 @@ let lastJson = "", stopping = false;
 async function poll() {
   try {
     const next = await api("/api/status");
+    // a status that left before your speed change landed would undo it; keep what you set
+    if (pendingSpeed) {
+      if (Date.now() > pendingSpeed.until || Math.abs(next.walk_speed_kmh - pendingSpeed.kmh) < 0.01) pendingSpeed = null;
+      else next.walk_speed_kmh = pendingSpeed.kmh;
+    }
+    $("updateBanner").hidden = next.version === PAGE_VERSION;
     const json = JSON.stringify(next);
     if (json === lastJson) return;
     if (status.status === "walking" && next.status !== "walking" && next.position && !stopping) toast("Arrived");
@@ -961,7 +1265,8 @@ async function poll() {
   favorites = await api("/api/favorites").catch(() => []);
   await poll();
   render();
-  if (status.position) map.jumpTo({ center: [status.position[1], status.position[0]], zoom: 15 });
+  if (status.position && !navOn) map.jumpTo({ center: [status.position[1], status.position[0]], zoom: 15 });
+  else if (navOn) map.jumpTo({ zoom: navZoom() });
   (function loop() { setTimeout(async () => { await poll(); loop(); }, status.status === "walking" ? 1000 : 2000); })();
 })();
 </script>

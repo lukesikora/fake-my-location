@@ -4,9 +4,11 @@ Run with ./start.sh. Open the printed link on your Mac or iPhone (same Wi-Fi).
 """
 
 import asyncio
+import bisect
 import json
 import math
 import os
+import random
 import secrets
 import socket
 import sys
@@ -41,6 +43,10 @@ def free_port(start: int) -> int:
 
 PORT = int(os.getenv("PORT") or free_port(8765))
 
+# Bump when the page and server change together. The page compares it to its own copy and
+# asks you to restart FML if they differ (the page updates on reload, the server doesn't).
+VERSION = 3
+
 if TOKEN_FILE.exists():
     TOKEN = TOKEN_FILE.read_text().strip()
 else:
@@ -64,6 +70,53 @@ def lerp(a: tuple[float, float], b: tuple[float, float], t: float) -> tuple[floa
     return a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
 
 
+def offset_m(p: tuple[float, float], north_m: float, east_m: float) -> tuple[float, float]:
+    """Move a point by a few metres."""
+    dlat = north_m / EARTH_M
+    dlon = east_m / (EARTH_M * math.cos(math.radians(p[0])))
+    return p[0] + math.degrees(dlat), p[1] + math.degrees(dlon)
+
+
+def bearing(a: tuple[float, float], b: tuple[float, float]) -> float:
+    lat1, lat2 = math.radians(a[0]), math.radians(b[0])
+    dlon = math.radians(b[1] - a[1])
+    y = math.sin(dlon) * math.cos(lat2)
+    x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+    return math.degrees(math.atan2(y, x)) % 360
+
+
+class Path:
+    """A route you can ask 'where am I after N metres?'."""
+
+    def __init__(self, pts: list[tuple[float, float]]):
+        self.pts = pts
+        self.cum = [0.0]
+        for a, b in zip(pts, pts[1:]):
+            self.cum.append(self.cum[-1] + distance_m(a, b))
+        self.total = self.cum[-1]
+        # distances along the route where it turns sharply (corners)
+        self.turns = []
+        for i in range(1, len(pts) - 1):
+            if self.cum[i] - self.cum[i - 1] < 1 or self.cum[i + 1] - self.cum[i] < 1:
+                continue
+            change = abs((bearing(pts[i], pts[i + 1]) - bearing(pts[i - 1], pts[i]) + 180) % 360 - 180)
+            if change > 40:
+                self.turns.append(self.cum[i])
+
+    def at(self, d: float) -> tuple[float, float]:
+        if d <= 0:
+            return self.pts[0]
+        if d >= self.total:
+            return self.pts[-1]
+        i = bisect.bisect_right(self.cum, d) - 1
+        seg = self.cum[i + 1] - self.cum[i]
+        return lerp(self.pts[i], self.pts[i + 1], (d - self.cum[i]) / seg if seg else 0)
+
+    def next_turn(self, d: float) -> float:
+        i = bisect.bisect_right(self.turns, d)
+        return self.turns[i] - d if i < len(self.turns) else math.inf
+
+
 # ---------------------------------------------------------------- device session
 
 
@@ -81,7 +134,12 @@ class Session:
         self.walk_target: Optional[tuple[float, float]] = None
         self.walk_route: list[tuple[float, float]] = []
         self.walk_remaining_m: float = 0
-        self.walk_speed_kmh: float = 0
+        self.walk_speed_kmh: float = 0  # the speed you asked for (can change mid-trip)
+        self.speed_now_kmh: float = 0   # the speed you're actually moving right now
+        self.heading: float = 0         # direction of travel, degrees clockwise from north
+        self.anchor: Optional[tuple[float, float]] = None  # where you're "parked"; drift wanders around it
+        self.drift = True
+        self.drift_task: Optional[asyncio.Task] = None
         self.label: Optional[str] = None
         self.status = "idle"  # idle | connecting | active | walking | error
         self.error: Optional[str] = None
@@ -201,6 +259,7 @@ class Session:
                     pass
             await self._kill()
             self.position = None
+            self.anchor = None
             self.label = None
             self.status, self.error = "idle", None
 
@@ -211,46 +270,97 @@ class Session:
         self.walk_target = None
         self.walk_route = []
         self.walk_remaining_m = 0
+        self.speed_now_kmh = 0
         if self.status == "walking":
             self.status = "active"
+            self.anchor = self.position
 
     def start_walk(self, route: list[tuple[float, float]], speed_kmh: float) -> None:
         self.stop_walk()
         self.walk_target = route[-1]
         self.walk_route = route
         self.walk_speed_kmh = speed_kmh
-        self.walk_task = asyncio.create_task(self._walk(route, speed_kmh))
+        self.walk_task = asyncio.create_task(self._walk(route))
 
-    async def _walk(self, route: list[tuple[float, float]], speed_kmh: float) -> None:
-        step_m = speed_kmh / 3.6  # metres per 1-second tick
+    def park(self) -> None:
+        """You're standing still here; start the small natural GPS wobble around this spot."""
+        self.anchor = self.position
+        if self.drift_task is None or self.drift_task.done():
+            self.drift_task = asyncio.create_task(self._drift())
+
+    async def _drift(self) -> None:
+        """Real GPS never sits perfectly still. Wander a few metres around the parked spot."""
+        north = east = 0.0
+        while True:
+            await asyncio.sleep(random.uniform(4, 9))
+            if not (self.drift and self.alive and self.status == "active" and self.anchor):
+                continue
+            # small random walk that is pulled back toward the spot, staying within ~6 m
+            north = max(-6, min(6, north * 0.6 + random.gauss(0, 1.8)))
+            east = max(-6, min(6, east * 0.6 + random.gauss(0, 1.8)))
+            anchor = self.anchor
+            try:
+                async with self.lock:
+                    if self.status != "active" or self.anchor != anchor:
+                        continue
+                    p = offset_m(anchor, north, east)
+                    await self._send({"cmd": "set", "lat": p[0], "lon": p[1]})
+            except Exception:
+                pass
+
+    async def _walk(self, route: list[tuple[float, float]]) -> None:
+        """Move along the route like a real person or car would.
+
+        Speeds up gradually, wanders a little around the chosen speed, slows down for corners
+        and comes to a gentle stop at the end. The speed can be changed while moving.
+        """
+        path = Path(route)
         self.status = "walking"
+        tick = 1.0
+        done = 0.0      # metres travelled
+        v = 0.0         # current speed, m/s
+        wander = 1.0    # slow random speed variation around the target
         try:
-            here = route[0]
-            await self.set(*here)
-            # metres left after each leg's end point
-            after = [0.0] * len(route)
-            for i in range(len(route) - 2, -1, -1):
-                after[i] = after[i + 1] + distance_m(route[i], route[i + 1])
-            for i, target in enumerate(route[1:], start=1):
-                while True:
-                    remaining = distance_m(here, target)
-                    self.walk_remaining_m = remaining + after[i]
-                    if remaining <= step_m:
-                        here = target
-                        await self.set(*here)
-                        await asyncio.sleep(remaining / step_m if step_m else 1)
-                        break
-                    here = lerp(here, target, step_m / remaining)
-                    await self.set(*here)
-                    await asyncio.sleep(1)
+            await self.set(*path.at(0))
+            while done < path.total:
+                target = self.walk_speed_kmh / 3.6
+                wander = max(0.88, min(1.12, wander + random.gauss(0, 0.03)))
+                want = target * wander
+
+                # slow for the next corner (cars more than walkers)
+                brake_zone = max(12.0, v * 4)
+                if path.next_turn(done) < brake_zone:
+                    corner = min(want, 6.0) if want > 6 else want * 0.85
+                    want = min(want, corner)
+                # roll to a stop at the end
+                left = path.total - done
+                if left < brake_zone:
+                    want = min(want, max(1.0, left / 3))
+
+                # limit acceleration / braking so speed never jumps
+                accel = (0.6 if target < 4 else 2.5) * tick
+                brake = (1.0 if target < 4 else 3.5) * tick
+                v = max(0.6, v + max(-brake, min(accel, want - v)))
+
+                prev = path.at(done)
+                done = min(path.total, done + v * tick)
+                self.walk_remaining_m = path.total - done
+                self.speed_now_kmh = round(v * 3.6, 1)
+                nxt = path.at(done)
+                if distance_m(prev, nxt) > 0.3:
+                    self.heading = round(bearing(prev, nxt), 1)
+                await self.set(*nxt)
+                await asyncio.sleep(tick)
         except HTTPException:
             pass
         finally:
             self.walk_target = None
             self.walk_route = []
             self.walk_remaining_m = 0
+            self.speed_now_kmh = 0
             if self.status == "walking":
                 self.status = "active"
+                self.park()
 
 
 session = Session()
@@ -365,6 +475,10 @@ async def status():
         "walk_route": session.walk_route,
         "walk_remaining_m": round(session.walk_remaining_m),
         "walk_speed_kmh": session.walk_speed_kmh,
+        "speed_now_kmh": session.speed_now_kmh,
+        "heading": session.heading,
+        "version": VERSION,
+        "drift": session.drift,
         "label": session.label,
         "connected": session.alive,
     }
@@ -380,6 +494,7 @@ async def set_location(p: Point):
     session.stop_walk()
     await session.set(p.lat, p.lon)
     session.label = p.label
+    session.park()
     return await status()
 
 
@@ -399,10 +514,33 @@ async def walk(req: WalkReq):
     return {"route": route}
 
 
+class SpeedReq(BaseModel):
+    speed_kmh: float = Field(gt=0, le=300)
+
+
+@app.post("/api/speed")
+async def set_speed(req: SpeedReq):
+    """Change speed while already moving."""
+    session.walk_speed_kmh = req.speed_kmh
+    return await status()
+
+
+class SettingsReq(BaseModel):
+    drift: bool
+
+
+@app.post("/api/settings")
+async def settings(req: SettingsReq):
+    session.drift = req.drift
+    return await status()
+
+
 @app.post("/api/stop")
 async def stop():
     session.stop_walk()
     session.label = None  # stopped partway, so the destination name no longer applies
+    if session.position:
+        session.park()
     return await status()
 
 
