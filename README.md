@@ -24,15 +24,7 @@ FML changes your iPhone's GPS location to anywhere you pick, so **everyone check
 
 It changes the location for the **whole iPhone**, so Find My, family location apps, Snapchat, Maps and every other app see the fake spot. You can **teleport** there instantly, or **drive** there along real roads so it looks like a normal trip.
 
-<div align="center">
-<table>
-<tr>
-<td align="center"><img src="docs/images/teleport.jpg" width="220" alt="Picking a place to teleport to"><br><b>Pick a spot</b><br>Search or tap the map</td>
-<td align="center"><img src="docs/images/driving.jpg" width="220" alt="Driving along a route with a live speed slider"><br><b>Drive there for real</b><br>Change speed while moving</td>
-<td align="center"><img src="docs/images/jump-warning.jpg" width="220" alt="Warning before a big teleport jump"><br><b>No suspicious jumps</b><br>FML warns you first</td>
-</tr>
-</table>
-</div>
+<p align="center"><img src="docs/images/readme-how.jpg" width="800" alt="1: Pick a spot by searching or tapping the map. 2: Drive there for real and change speed while moving. 3: No suspicious jumps, FML warns you first."></p>
 
 ---
 
@@ -80,7 +72,7 @@ Wait until you see **✓ FML is installed!** FML then opens by itself in a new w
 
 You'll now have an **FML** icon on your Desktop. 🎉
 
-<div align="center"><img src="docs/images/welcome.jpg" width="240" alt="FML welcome screen"></div>
+<p align="center"><img src="docs/images/readme-welcome.jpg" width="300" alt="The FML welcome screen with 3 setup steps"></p>
 
 ---
 
@@ -126,14 +118,7 @@ You'll now have an **FML** icon on your Desktop. 🎉
 
 FML is built so your location **looks real**, not fake. Here's what it does for you, and what you should do yourself.
 
-<div align="center">
-<table>
-<tr>
-<td align="center"><img src="docs/images/driving.jpg" width="220" alt="Driving with live speed control"><br><b>Moves like a real car</b></td>
-<td align="center"><img src="docs/images/settings.jpg" width="220" alt="Stealth settings"><br><b>Stealth settings</b></td>
-</tr>
-</table>
-</div>
+<p align="center"><img src="docs/images/readme-stealth.jpg" width="600" alt="Left: FML driving like a real car. Right: stealth settings with GPS drift and jump warnings switched on."></p>
 
 ### What FML does automatically
 
